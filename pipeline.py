@@ -142,11 +142,12 @@ def write_cog(array, profile, output_path):
         dst.set_band_description(1, "Aboveground Carbon Stock (tC/ha)")
 
     # Translate to COG using GDAL's COG driver
+    # COG creation options: https://gdal.org/drivers/raster/cog.html
     cog_profile_final = {
         "driver": "COG",
         "compress": "LZW",
         "blocksize": 512,
-        "resampling": Resampling.average,
+        "resampling": "AVERAGE",
     }
 
     with rasterio.open(tmp_path) as src:
