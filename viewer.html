@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYCLOPS MRV Demo - Carbon Stock Map</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
+        #header { padding: 16px 24px; background: #1e293b; border-bottom: 1px solid #334155; }
+        #header h1 { font-size: 18px; font-weight: 600; }
+        #header p { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+        #map { width: 100%; height: calc(100vh - 120px); background: #1e293b; }
+        #controls { position: absolute; bottom: 24px; right: 24px; z-index: 1000; background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 16px; min-width: 240px; }
+        #controls h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #f1f5f9; }
+        #legend { display: flex; flex-direction: column; gap: 4px; }
+        .legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; }
+        .legend-swatch { width: 20px; height: 14px; border-radius: 3px; }
+        #file-input { margin-top: 12px; font-size: 12px; color: #94a3b8; }
+        #file-input input { margin-top: 4px; width: 100%; font-size: 12px; color: #e2e8f0; }
+        #status { margin-top: 8px; font-size: 12px; color: #94a3b8; }
+        .leaflet-container { background: #1e293b; }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <h1>CYCLOPS MRV Demo - Carbon Stock Map</h1>
+    <p>Kakum National Park, Ghana | Sentinel-2 NDVI to Aboveground Carbon (tC/ha) | Cloud-Optimized GeoTIFF visualization</p>
+</div>
+
+<div id="map"></div>
+
+<div id="controls">
+    <h3>Carbon Stock (tC/ha)</h3>
+    <div id="legend">
+        <div class="legend-row"><div class="legend-swatch" style="background: #1a5e3a"></div> 0 - 5 (low biomass)</div>
+        <div class="legend-row"><div class="legend-swatch" style="background: #2d8a47"></div> 5 - 15</div>
+        <div class="legend-row"><div class="legend-swatch" style="background: #5cb85c"></div> 15 - 25</div>
+        <div class="legend-row"><div class="legend-swatch" style="background: #f0ad4e"></div> 25 - 35</div>
+        <div class="legend-row"><div class="legend-swatch" style="background: #d9534f"></div> 35+ (high biomass)</div>
+    </div>
+    <div id="file-input">
+        Load COG file:
+        <input type="file" id="cog-file" accept=".tif,.tiff" />
+    </div>
+    <div id="status">Waiting for COG file...</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/georaster@1.6.5/dist/georaster.browser.bundle.min.js"></script>
+<script src="https://unpkg.com/georaster-layer-for-leaflet@4.1.2/dist/georaster-layer-for-leaflet.min.js"></script>
+
+<script>
+    // AOI center: Kakum National Park, Ghana
+    const AOI_CENTER = [5.36, -1.38];
+    const AOI_BOUNDS = [[5.30, -1.45], [5.42, -1.30]];
+
+    // Initialize Leaflet map
+    const map = L.map("map", {
+        center: AOI_CENTER,
+        zoom: 12,
+        maxZoom: 16,
+    });
+
+    // Add OpenStreetMap basemap
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+    }).addTo(map);
+
+    // Show AOI bounds
+    L.rectangle(AOI_BOUNDS, {
+        color: "#3b82f6",
+        weight: 2,
+        fillOpacity: 0,
+        dashArray: "5, 5",
+    }).addTo(map);
+
+    // Carbon value to color mapping
+    function carbonToColor(values) {
+        const v = values[0];
+        if (v === 0 || v === null || v === undefined || isNaN(v)) return null;
+        if (v < 5) return "#1a5e3a";
+        if (v < 15) return "#2d8a47";
+        if (v < 25) return "#5cb85c";
+        if (v < 35) return "#f0ad4e";
+        return "#d9534f";
+    }
+
+    let currentLayer = null;
+
+    function loadCOG(arrayBuffer) {
+        const status = document.getElementById("status");
+        status.textContent = "Parsing COG...";
+
+        parseGeoraster(arrayBuffer).then(function(georaster) {
+            status.textContent = "Rendering on map...";
+
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+
+            currentLayer = new GeoRasterLayer({
+                georaster: georaster,
+                opacity: 0.75,
+                resolution: 256,
+                pixelValuesToColorFn: carbonToColor,
+            });
+
+            currentLayer.addTo(map);
+            map.fitBounds(currentLayer.getBounds());
+            status.textContent = "Loaded: " + georaster.width + " x " + georaster.height + " pixels";
+        }).catch(function(err) {
+            status.textContent = "Error: " + err.message;
+            console.error(err);
+        });
+    }
+
+    // File input handler
+    document.getElementById("cog-file").addEventListener("change", function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            loadCOG(e.target.result);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+</script>
+
+</body>
+</html>

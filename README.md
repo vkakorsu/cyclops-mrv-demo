@@ -26,6 +26,21 @@ python pipeline.py
 
 Output COG is written to `output/ndvi_carbon_cog.tif`.
 
+### Visualize the COG
+
+Open `viewer.html` in a browser, click "Load COG file," and select `output/ndvi_carbon_cog.tif`. The carbon raster renders on a Leaflet map with a color ramp from low (dark green) to high (red) carbon stock.
+
+The viewer uses `georaster-layer-for-leaflet` to parse the COG client-side, no tile server required.
+
+### Run via Docker
+
+```bash
+docker build -t cyclops-mrv-demo .
+docker run --rm -v $(pwd)/output:/app/output cyclops-mrv-demo
+```
+
+The Docker image uses the official `ghcr.io/osgeo/gdal:ubuntu-small-latest` base with GDAL pre-installed.
+
 ## Pipeline Architecture
 
 ```
@@ -74,6 +89,8 @@ Default AOI is the **Kakum National Park** area in Ghana (5.35N, 1.38W), a prote
 ```
 cyclops-mrv-demo/
   pipeline.py          Main pipeline: STAC search -> NDVI -> carbon -> COG
+  viewer.html          Leaflet web viewer for COG visualization
+  Dockerfile           Containerized pipeline (GDAL + Python)
   requirements.txt     Python dependencies
   README.md            This file
   output/              Generated COGs (gitignored)
@@ -85,6 +102,8 @@ CYCLOPS turns petabytes of Earth observation imagery into auditable carbon metri
 
 - **STAC-based scene discovery** (not manual downloads)
 - **Cloud-Optimized GeoTIFF output** (not plain TIFFs)
+- **Web visualization** (Leaflet + georaster-layer-for-leaflet, no tile server)
+- **Containerized** (Docker with GDAL base image)
 - **Reproducible carbon estimation** (documented model, deterministic)
 - **Minimal dependencies** (no heavy frameworks, just the right tools)
 
